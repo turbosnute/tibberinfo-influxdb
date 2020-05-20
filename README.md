@@ -10,7 +10,7 @@ docker run -d \
  -e INFLUXDB_PW="root" \
  -e INFLUXDB_DATABASE="tibberPulse" \
  -e TIBBER_TOKEN="" \
- --name "tibberinso-influxdb" \
+ --name "tibberinfo-influxdb" \
 turbosnute/tibberinfo-influxdb:latest
 ```
 
