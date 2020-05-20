@@ -22,7 +22,7 @@ influxuser=os.getenv('INFLUXDB_USER', 'root')
 influxpw=os.getenv('INFLUXDB_PW', 'root')
 influxdb=os.getenv('INFLUXDB_DATABASE', 'tibberPulse')
 tibbertoken=os.getenv('TIBBER_TOKEN')
-tibberhomes_only_active=os.getenv('TIBBER_HOMES_ONLYACTIVE', 'True')
+tibberhomes_only_active=str(os.getenv('TIBBER_HOMES_ONLYACTIVE', 'True'))
 
 client = InfluxDBClient(influxhost, influxport, influxuser, influxpw, influxdb)
 
@@ -33,7 +33,7 @@ tibber_connection.sync_update_info()
 if str2bool(tibberhomes_only_active):
   homes=tibber_connection.get_homes(only_active=True)
 else:
-  home=tibber_connection.get_homes(only_active=False)
+  homes=tibber_connection.get_homes(only_active=False)
 
 for home in homes:
   home.sync_update_info()
