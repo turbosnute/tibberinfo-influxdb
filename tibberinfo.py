@@ -42,6 +42,7 @@ for home in homes:
   home.sync_update_price_info()
   #print(home.current_price_info)
   
+  
   total = home.current_price_info['total']
   startsAt = home.current_price_info['startsAt']
   level = home.current_price_info['level']
