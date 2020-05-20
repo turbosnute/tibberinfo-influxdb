@@ -22,7 +22,7 @@ influxuser=os.getenv('INFLUXDB_USER', 'root')
 influxpw=os.getenv('INFLUXDB_PW', 'root')
 influxdb=os.getenv('INFLUXDB_DATABASE', 'tibberPulse')
 tibbertoken=os.getenv('TIBBER_TOKEN')
-tibberhomes_only_active=os.getenv('TIBBER_HOMES_ONLYACTIVE', 'True')
+tibberhomes_only_active=str(os.getenv('TIBBER_HOMES_ONLYACTIVE', 'True'))
 
 client = InfluxDBClient(influxhost, influxport, influxuser, influxpw, influxdb)
 
