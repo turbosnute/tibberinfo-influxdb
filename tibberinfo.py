@@ -33,7 +33,7 @@ tibber_connection.sync_update_info()
 if str2bool(tibberhomes_only_active):
   homes=tibber_connection.get_homes(only_active=True)
 else:
-  home=tibber_connection.get_homes(only_active=False)
+  homes=tibber_connection.get_homes(only_active=False)
 
 for home in homes:
   home.sync_update_info()
