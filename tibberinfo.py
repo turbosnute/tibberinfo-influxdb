@@ -46,7 +46,7 @@ for home in homes:
   total = home.current_price_info['total']
   startsAt = home.current_price_info['startsAt']
   level = home.current_price_info['level']
-  
+  level_pretty = level.lower().replace('_',' ').capitalize()
   CurPriceInfo = [{
 	"measurement": "price",
         "tags": {
@@ -55,7 +55,8 @@ for home in homes:
 	"fields": {
 		"startsAt": startsAt,
 		"price": ifStringZero(total),
-                "level": level
+                "level": level,
+                "displaylevel": level_pretty
 	}
   }]
   
