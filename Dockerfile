@@ -15,11 +15,15 @@ RUN apt-get update && apt-get install -y \
     --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
 # RUN pip install
-RUN pip3 install pyTibber influxdb
+RUN pip3 install pyTibber influxdb arrow
 
 # Copy files
 ADD tibberinfo.py /
 ADD get.sh / 
+
+# Chmod
+RUN chmod 755 /get.sh
+RUN chmod 755 /tibberinfo.py
 
 # Environment vars
 ENV PYTHONIOENCODING=utf-8
