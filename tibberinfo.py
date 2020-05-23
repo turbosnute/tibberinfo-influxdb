@@ -30,6 +30,7 @@ debug=os.getenv('DEBUG', 'false')
 if str2bool(debug):
   print("Influxdb Host: " + influxuser + "@" + influxhost + ":" + str(influxport))
   print("Influxdb DB: " + influxdb)
+  print("Hourly data DB: " + hourlydb)
   print("Tibber Token: " + tibbertoken)
   print("Only Active Homes: " + tibberhomes_only_active)
   print("Load History: " + loadHistory)
@@ -80,7 +81,16 @@ for home in homes:
   #
   # Consumption last hour
   #
-  if str2bool(loadHistory):
+
+  #first check if it is nessecary to load more historic data...
+  #Look for data from the latest 3 hours:
+  result=client.query("select COUNT(cost) from consumption WHERE time > now() - 10h AND time < now()")
+
+  if str2bool(loadHistory) or result.raw['series'] == []:
+    #not much data. Lets add some
+    numhours = 100
+  elif result.raw['series'][0]['values'][0][1] < 8:
+    # too litle. lets add.
     numhours = 100
   else:
     numhours = 2
