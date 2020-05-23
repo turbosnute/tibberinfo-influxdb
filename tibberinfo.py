@@ -25,7 +25,7 @@ influxdb=os.getenv('INFLUXDB_DATABASE', 'tibberPulse')
 tibbertoken=os.getenv('TIBBER_TOKEN')
 tibberhomes_only_active=str(os.getenv('TIBBER_HOMES_ONLYACTIVE', 'True'))
 loadHistory=os.getenv('LOAD_HISTORY', 'FALSE')
-debug=os.getenv('DEBUG', 'false')
+debug=os.getenv('DEBUG', 'False')
 
 if str2bool(debug):
   print("Influxdb Host: " + influxuser + "@" + influxhost + ":" + str(influxport))
@@ -60,7 +60,7 @@ for home in homes:
   total = home.current_price_info['total']
   startsAt = home.current_price_info['startsAt']
   level = home.current_price_info['level']
-  level_pretty = level.lower().replace('_',' ').capitalize()
+  level_pretty = level.lower().replace('_',' ').title()
   CurPriceInfo = [{
 	"measurement": "price",
         "tags": {
@@ -108,6 +108,9 @@ for home in homes:
       lastConsumption = [{
          "measurement": "consumption",
          "time": timestamp,
+         "tags": {
+           "address": address
+         },
          "fields": {
            "cost": lastTotalCost,
            "consumption": lastConsumption
