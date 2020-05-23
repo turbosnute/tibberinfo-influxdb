@@ -30,7 +30,6 @@ debug=os.getenv('DEBUG', 'false')
 if str2bool(debug):
   print("Influxdb Host: " + influxuser + "@" + influxhost + ":" + str(influxport))
   print("Influxdb DB: " + influxdb)
-  print("Hourly data DB: " + hourlydb)
   print("Tibber Token: " + tibbertoken)
   print("Only Active Homes: " + tibberhomes_only_active)
   print("Load History: " + loadHistory)
