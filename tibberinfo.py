@@ -78,13 +78,13 @@ for home in homes:
         "tags": {
                 "address": address
         },
-	"fields": {
-		"startsAt": startsAt,
-		"price": ifStringZero(total),
-    "level": level,
-    "displaylevel": level_pretty,
-    "numberlevel": numlevel
-	}
+        "fields": {
+          "startsAt": startsAt,
+          "price": ifStringZero(total),
+          "level": level,
+          "displaylevel": level_pretty,
+          "numberlevel": numlevel
+	      }
   }]
   
   print(CurPriceInfo)
