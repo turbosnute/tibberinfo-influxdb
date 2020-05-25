@@ -84,7 +84,7 @@ for home in homes:
           "level": level,
           "displaylevel": level_pretty,
           "numberlevel": numlevel
-	      }
+	}
   }]
   
   print(CurPriceInfo)
