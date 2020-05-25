@@ -25,7 +25,7 @@ influxdb=os.getenv('INFLUXDB_DATABASE', 'tibberPulse')
 tibbertoken=os.getenv('TIBBER_TOKEN')
 tibberhomes_only_active=str(os.getenv('TIBBER_HOMES_ONLYACTIVE', 'True'))
 loadHistory=os.getenv('LOAD_HISTORY', 'FALSE')
-debug=os.getenv('DEBUG', None)
+debug=os.getenv('DEBUG', 'False')
 
 if str2bool(debug):
   print("Influxdb Host: " + influxuser + "@" + influxhost + ":" + str(influxport))
