@@ -25,10 +25,11 @@ influxdb=os.getenv('INFLUXDB_DATABASE', 'tibberPulse')
 tibbertoken=os.getenv('TIBBER_TOKEN')
 tibberhomes_only_active=str(os.getenv('TIBBER_HOMES_ONLYACTIVE', 'True'))
 loadHistory=os.getenv('LOAD_HISTORY', 'FALSE')
-debug=os.getenv('DEBUG', 'False')
+debug=os.getenv('DEBUG', None)
 
 if str2bool(debug):
   print("Influxdb Host: " + influxuser + "@" + influxhost + ":" + str(influxport))
+  print("Influxdb Password: " + '*'*len(influxpw))
   print("Influxdb DB: " + influxdb)
   print("Tibber Token: " + tibbertoken)
   print("Only Active Homes: " + tibberhomes_only_active)
@@ -61,6 +62,17 @@ for home in homes:
   startsAt = home.current_price_info['startsAt']
   level = home.current_price_info['level']
   level_pretty = level.lower().replace('_',' ').title()
+
+  numlevel = 2
+  if level == 'VERY_CHEAP':
+    numlevel = 0
+  elif level == 'CHEAP':
+    numlevel = 1
+  elif level == 'EXPENSIVE':
+    numlevel = 3
+  elif level == 'VERY_EXPENSIVE':
+    numlevel = 4
+
   CurPriceInfo = [{
 	"measurement": "price",
         "tags": {
@@ -69,8 +81,9 @@ for home in homes:
 	"fields": {
 		"startsAt": startsAt,
 		"price": ifStringZero(total),
-                "level": level,
-                "displaylevel": level_pretty
+    "level": level,
+    "displaylevel": level_pretty,
+    "numberlevel": numlevel
 	}
   }]
   

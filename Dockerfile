@@ -1,3 +1,5 @@
+ARG ARCH=
+
 # Pull base image
 FROM ubuntu:latest
 
