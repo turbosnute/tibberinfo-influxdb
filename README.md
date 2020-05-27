@@ -17,7 +17,7 @@ $ docker run -d -p 8086:8086 \
 
 ### Create Dabatase
 ```
-$ curl -G http://<INFLUXDB_SERVER or DOCKER_HOST>:8086/query --data-urlencode "q=CREATE DATABASE mydb"
+$ curl -G http://<INFLUXDB_SERVER or DOCKER_HOST>:8086/query --data-urlencode "q=CREATE DATABASE tibber"
 ```
 
 # How to run

@@ -125,8 +125,8 @@ for home in homes:
            "address": address
          },
          "fields": {
-           "cost": lastTotalCost,
-           "consumption": lastConsumption
+           "cost": ifStringZero(lastTotalCost),
+           "consumption": ifStringZero(lastConsumption)
          }
       }]
       
