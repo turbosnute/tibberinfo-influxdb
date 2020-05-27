@@ -102,7 +102,7 @@ for home in homes:
     #not much data. Lets add some
     numhours = 100
   elif result.raw['series'][0]['values'][0][1] < 8:
-    # too litle. lets add.
+    # too little. lets add.
     numhours = 100
   else:
     numhours = 2
