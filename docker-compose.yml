@@ -1,0 +1,7 @@
+version: '3'
+services:
+  tibberinfo-influxdb:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped

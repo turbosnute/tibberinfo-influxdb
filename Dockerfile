@@ -1,35 +1,36 @@
-#Build ARGS
+# Build ARGS
 ARG ARCH=
 
 # Pull base image
-FROM ubuntu:latest
+FROM python:3.11-alpine
 
 # Labels
 LABEL MAINTAINER="Øyvind Nilsen <oyvind.nilsen@gmail.com>"
 
-# Setup external package-sources
-RUN apt-get update && apt-get install -y \
-    python3 \
-    python3-dev \
-    python3-wheel \
-    python3-setuptools \
-    python3-pip \
-    gcc \
-    --no-install-recommends && \
-    rm -rf /var/lib/apt/lists/*
-# RUN pip install
-RUN pip3 install pyTibber influxdb arrow
-
-# Copy files
-ADD tibberinfo.py /
-ADD get.sh / 
-
-# Chmod
-RUN chmod 755 /get.sh
-RUN chmod 755 /tibberinfo.py
-
 # Environment vars
 ENV PYTHONIOENCODING=utf-8
+ENV USER_ID=65535
+ENV GROUP_ID=65535
+ENV USER_NAME=tibber
+ENV GROUP_NAME=tibber
 
-# Run
-CMD ["/bin/bash","/get.sh"]
+WORKDIR /app
+
+RUN addgroup -g $GROUP_ID $GROUP_NAME && \
+    adduser --shell /sbin/nologin --disabled-password \
+    --no-create-home --uid $USER_ID --ingroup $GROUP_NAME $USER_NAME
+
+# Copy files
+ADD tibberinfo.py /app/
+ADD get.sh /app/
+ADD requirements.txt /app/
+
+# Chmod
+RUN chmod 755 /app/get.sh
+RUN chmod 755 /app/tibberinfo.py
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+USER $USER_NAME
+
+CMD ["/bin/sh","/app/get.sh"]
