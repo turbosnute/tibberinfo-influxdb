@@ -29,7 +29,9 @@ ADD requirements.txt /app/
 RUN chmod 755 /app/get.sh
 RUN chmod 755 /app/tibberinfo.py
 
+RUN apk add --update --no-cache --virtual .tmp-build-deps gcc libc-dev
 RUN pip install --no-cache-dir -r requirements.txt
+RUN apk del .tmp-build-deps
 
 USER $USER_NAME
 
