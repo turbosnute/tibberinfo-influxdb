@@ -1,12 +1,14 @@
 import asyncio
 import os
-import sys
 import tibber
 import arrow
-from influxdb import InfluxDBClient
+from influxdb_client import InfluxDBClient, Point
+from influxdb_client.client.write_api import SYNCHRONOUS
+from influxdb_client.client.query_api import QueryApi
 import click
 
 
+# Helper functions remain the same
 def if_string_zero(val: str) -> float:
     val = str(val).strip()
     res = None
@@ -39,18 +41,21 @@ def map_level_to_int(level: str) -> int:
 
 
 async def main(
-    influx_host: str,
-    influx_port: int,
-    influx_user: str,
-    influx_pw: str,
-    influx_db: str,
+    influx_url: str,
+    influx_token: str,
+    influx_org: str,
+    influx_bucket: str,
     influx_dry_run: bool,
     tibber_token: str,
     tibber_homes_only_active: bool,
     load_history: bool,
     verbose: bool,
 ):
-    client = InfluxDBClient(influx_host, influx_port, influx_user, influx_pw, influx_db)
+    # Initialize the client
+    client = InfluxDBClient(url=influx_url, token=influx_token)
+    write_api = client.write_api(write_options=SYNCHRONOUS)
+    query_api = client.query_api()
+
     tibber_connection = tibber.Tibber(tibber_token)
     await tibber_connection.update_info()
     print(tibber_connection.name)
@@ -70,7 +75,7 @@ async def main(
         cur_price_info = get_current_price(home)
         print(cur_price_info)
         if not influx_dry_run:
-            client.write_points(cur_price_info, time_precision="s")
+            write_api.write(bucket=influx_bucket, org=influx_org, record=cur_price_info)
 
         entries = list()
         for entry in list(
@@ -99,7 +104,7 @@ async def main(
 
         print(entries)
         if not influx_dry_run:
-            client.write_points(entries, time_precision="s")
+            write_api.write(bucket=influx_bucket, org=influx_org, record=entries)
 
         #
         # Consumption last hour
@@ -107,15 +112,11 @@ async def main(
 
         # first check if it is nessecary to load more historic data...
         # Look for data from the latest 3 hours:
-        result = client.query(
-            "select COUNT(cost) from consumption WHERE time > now() - 10h AND time < now()"
-        )
+        query = f'from(bucket: "{influx_bucket}") |> range(start: -10h) |> filter(fn: (r) => r._measurement == "consumption")'
+        result = query_api.query(org=influx_org, query=query)
 
-        if load_history or result.raw["series"] == []:
+        if load_history or not result.get_points():
             # not much data. Lets add some
-            numhours = 100
-        elif result.raw["series"][0]["values"][0][1] < 8:
-            # too little. lets add.
             numhours = 100
         else:
             numhours = 2
@@ -143,7 +144,9 @@ async def main(
 
                 print(lastConsumption)
                 if not influx_dry_run:
-                    client.write_points(lastConsumption, time_precision="s")
+                    write_api.write(
+                        bucket=influx_bucket, org=influx_org, record=lastConsumption
+                    )
 
     await tibber_connection.close_connection()
     client.close()
@@ -180,11 +183,10 @@ def get_current_price(home: tibber.TibberHome) -> list:
 @click.command(
     epilog='\n\b\n\
     \nThe following environment variables need to be set if you need other values than the default values:\
-    \n"INFLUXDB_HOST": "influxdb",\
-    \n"INFLUXDB_PORT": 8086,\
-    \n"INFLUXDB_USER": "root",\
-    \n"INFLUXDB_PW": "root",\
-    \n"INFLUXDB_DATABASE": "tibber"'
+    \n"INFLUXDB_URL": "http://influxdb:8086",\
+    \n"INFLUXDB_TOKEN": "your-token",\
+    \n"INFLUXDB_ORG": "your-organization",\
+    \n"INFLUXDB_BUCKET": "your-bucket"'
 )
 @click.option(
     "--tibber-token",
@@ -223,11 +225,10 @@ def cli(
 ):
     # Check for required environment variables
     required_env_vars = {
-        "INFLUXDB_HOST": "influxdb",
-        "INFLUXDB_PORT": 8086,
-        "INFLUXDB_USER": "root",
-        "INFLUXDB_PW": "root",
-        "INFLUXDB_DATABASE": "tibber",
+        "INFLUXDB_URL": "http://influxdb:8086",
+        "INFLUXDB_TOKEN": "your-token",
+        "INFLUXDB_ORG": "your-organization",
+        "INFLUXDB_BUCKET": "your-bucket",
     }
 
     for var, default in required_env_vars.items():
@@ -235,27 +236,26 @@ def cli(
             print(f"Error: Environment variable {var} is required.")
             exit(1)
 
-    influx_host = os.getenv("INFLUXDB_HOST")
-    influx_port = int(os.getenv("INFLUXDB_PORT"))
-    influx_user = os.getenv("INFLUXDB_USER")
-    influx_pw = os.getenv("INFLUXDB_PW")
-    influx_db = os.getenv("INFLUXDB_DATABASE")
+    influx_url = os.getenv("INFLUXDB_URL")
+    influx_token = os.getenv("INFLUXDB_TOKEN")
+    influx_org = os.getenv("INFLUXDB_ORG")
+    influx_bucket = os.getenv("INFLUXDB_BUCKET")
 
     if verbose:
-        print(f"InfluxDB Host: {influx_user}@{influx_host}:{influx_port}")
-        print("InfluxDB Password: *****")
-        print(f"InfluxDB DB: {influx_db}")
+        print(f"InfluxDB URL: {influx_url}")
+        print("InfluxDB Token: *****")
+        print(f"InfluxDB Org: {influx_org}")
+        print(f"InfluxDB Bucket: {influx_bucket}")
         print(f"Tibber Token: {tibber_token}")
         print(f"Only Active Homes: {tibber_homes_only_active}")
         print(f"Load History: {load_history}")
 
     asyncio.run(
         main(
-            influx_host,
-            influx_port,
-            influx_user,
-            influx_pw,
-            influx_db,
+            influx_url,
+            influx_token,
+            influx_org,
+            influx_bucket,
             influx_dry_run,
             tibber_token,
             tibber_homes_only_active,
