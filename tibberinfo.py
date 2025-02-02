@@ -1,13 +1,11 @@
 import asyncio
 import os
 import tibber
-import arrow
 from influxdb_client import InfluxDBClient
 from influxdb_client.client.write_api import SYNCHRONOUS
 import click
 
 
-# Helper functions remain the same
 def if_string_zero(val: str) -> float:
     val = str(val).strip()
     res = None
@@ -71,6 +69,7 @@ async def main(
         if verbose:
             print("Home Address: {}".format(home.address1))
 
+        await home.update_current_price_info()
         cur_price_info = get_current_price(home)
         print(cur_price_info)
         if not influx_dry_run:
@@ -89,7 +88,7 @@ async def main(
             entries.append(
                 {
                     "measurement": "price",
-                    "time": int(arrow.get(startsAt).timestamp()),
+                    "time": startsAt,
                     "tags": {"address": home.address1},
                     "fields": {
                         "startsAt": startsAt,
@@ -101,7 +100,8 @@ async def main(
                 }
             )
 
-        print(entries)
+        if verbose:
+            print(entries)
         if not influx_dry_run:
             write_api.write(bucket=influx_bucket, org=influx_org, record=entries)
 
@@ -114,7 +114,7 @@ async def main(
         query = f'from(bucket: "{influx_bucket}") |> range(start: -10h) |> filter(fn: (r) => r._measurement == "consumption")'
         result = query_api.query(org=influx_org, query=query)
 
-        if load_history or not result.get_points():
+        if load_history or not result:
             # not much data. Lets add some
             numhours = 100
         else:
@@ -123,7 +123,7 @@ async def main(
         lasthoursdata = await home.get_historic_data(numhours)
         for hourdata in lasthoursdata:
             lastTime = hourdata["from"]
-            timestamp = int(arrow.get(lastTime).timestamp())
+            timestamp = lastTime
             lastConsumption = hourdata["consumption"]
             lastTotalCost = hourdata["totalCost"]
             # Example:
@@ -141,7 +141,8 @@ async def main(
                     }
                 ]
 
-                print(lastConsumption)
+                if verbose:
+                    print(lastConsumption)
                 if not influx_dry_run:
                     write_api.write(
                         bucket=influx_bucket, org=influx_org, record=lastConsumption
@@ -155,16 +156,20 @@ def get_current_price(home: tibber.TibberHome) -> list:
     #
     # Current price:
     #
-    total = home.current_price_info["total"]
-    startsAt = home.current_price_info["startsAt"]
-    level = home.current_price_info["level"]
+    current_price_info = home.info["viewer"]["home"]["currentSubscription"][
+        "priceInfo"
+    ]["current"]
+
+    total = current_price_info["total"]
+    startsAt = current_price_info["startsAt"]
+    level = current_price_info["level"]
     level_pretty = level.lower().replace("_", " ").title()
     numlevel = map_level_to_int(level)
 
     CurPriceInfo = [
         {
             "measurement": "price",
-            "time": int(arrow.get(startsAt).timestamp()),
+            "time": startsAt,
             "tags": {"address": home.address1},
             "fields": {
                 "startsAt": startsAt,
