@@ -55,7 +55,7 @@ async def main(
     write_api = client.write_api(write_options=SYNCHRONOUS)
     query_api = client.query_api()
 
-    tibber_connection = tibber.Tibber(tibber_token)
+    tibber_connection = tibber.Tibber(tibber_token, user_agent="tibberinfo-influxdb")
     await tibber_connection.update_info()
     print(tibber_connection.name)
 
