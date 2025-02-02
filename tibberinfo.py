@@ -1,8 +1,10 @@
 import asyncio
 import os
+import sys
 import tibber
 import arrow
 from influxdb import InfluxDBClient
+import click
 
 
 def if_string_zero(val: str) -> float:
@@ -36,9 +38,20 @@ def map_level_to_int(level: str) -> int:
     return numlevel
 
 
-async def main(access_token):
+async def main(
+    influx_host: str,
+    influx_port: int,
+    influx_user: str,
+    influx_pw: str,
+    influx_db: str,
+    influx_dry_run: bool,
+    tibber_token: str,
+    tibber_homes_only_active: bool,
+    load_history: bool,
+    verbose: bool,
+):
     client = InfluxDBClient(influx_host, influx_port, influx_user, influx_pw, influx_db)
-    tibber_connection = tibber.Tibber(access_token)
+    tibber_connection = tibber.Tibber(tibber_token)
     await tibber_connection.update_info()
     print(tibber_connection.name)
 
@@ -60,7 +73,9 @@ async def main(access_token):
             client.write_points(cur_price_info, time_precision="s")
 
         entries = list()
-        for entry in list(zip(home.price_total, home.price_total.values(), home.price_level.values())):
+        for entry in list(
+            zip(home.price_total, home.price_total.values(), home.price_level.values())
+        ):
             startsAt = entry[0]
             total = entry[1]
             level = entry[2]
@@ -92,7 +107,9 @@ async def main(access_token):
 
         # first check if it is nessecary to load more historic data...
         # Look for data from the latest 3 hours:
-        result = client.query("select COUNT(cost) from consumption WHERE time > now() - 10h AND time < now()")
+        result = client.query(
+            "select COUNT(cost) from consumption WHERE time > now() - 10h AND time < now()"
+        )
 
         if load_history or result.raw["series"] == []:
             # not much data. Lets add some
@@ -117,7 +134,10 @@ async def main(access_token):
                         "measurement": "consumption",
                         "time": timestamp,
                         "tags": {"address": home.address1},
-                        "fields": {"cost": if_string_zero(lastTotalCost), "consumption": if_string_zero(lastConsumption)},
+                        "fields": {
+                            "cost": if_string_zero(lastTotalCost),
+                            "consumption": if_string_zero(lastConsumption),
+                        },
                     }
                 ]
 
@@ -157,26 +177,93 @@ def get_current_price(home: tibber.TibberHome) -> list:
     return CurPriceInfo
 
 
-if __name__ == "__main__":
-    # Settings from env
-    influx_host = os.getenv("INFLUXDB_HOST", "influxdb")
-    influx_port = os.getenv("INFLUXDB_PORT", 8086)
-    influx_user = os.getenv("INFLUXDB_USER", "root")
-    influx_pw = os.getenv("INFLUXDB_PW", "root")
-    influx_db = os.getenv("INFLUXDB_DATABASE", "tibber")
-    influx_dry_run = str_to_bool(os.getenv("INFLUXDB_DRY_RUN", "False"))
-    tibber_token = os.getenv("TIBBER_TOKEN")
-    tibber_homes_only_active = str_to_bool(os.getenv("TIBBER_HOMES_ONLYACTIVE", "True"))
-    load_history = str_to_bool(os.getenv("LOAD_HISTORY", "False"))
-    verbose = str_to_bool(os.getenv("VERBOSE", "False"))
+@click.command(
+    epilog='\n\b\n\
+    \nThe following environment variables need to be set if you need other values than the default values:\
+    \n"INFLUXDB_HOST": "influxdb",\
+    \n"INFLUXDB_PORT": 8086,\
+    \n"INFLUXDB_USER": "root",\
+    \n"INFLUXDB_PW": "root",\
+    \n"INFLUXDB_DATABASE": "tibber"'
+)
+@click.option(
+    "--tibber-token",
+    default=lambda: os.getenv("TIBBER_TOKEN"),
+    prompt=False,
+    hide_input=True,
+    help="Tibber API token",
+)
+@click.option(
+    "--load-history",
+    is_flag=True,
+    help="Load historical data",
+)
+@click.option(
+    "--verbose",
+    is_flag=True,
+    help="Enable verbose mode",
+)
+@click.option(
+    "--tibber-homes-only-active",
+    is_flag=True,
+    default=True,
+    help="Only use active Tibber homes",
+)
+@click.option(
+    "--influx-dry-run",
+    is_flag=True,
+    help="Dry run for InfluxDB (do not write data)",
+)
+def cli(
+    tibber_token: str,
+    load_history: bool,
+    verbose: bool,
+    tibber_homes_only_active: bool,
+    influx_dry_run: bool,
+):
+    # Check for required environment variables
+    required_env_vars = {
+        "INFLUXDB_HOST": "influxdb",
+        "INFLUXDB_PORT": 8086,
+        "INFLUXDB_USER": "root",
+        "INFLUXDB_PW": "root",
+        "INFLUXDB_DATABASE": "tibber",
+    }
+
+    for var, default in required_env_vars.items():
+        if os.getenv(var) is None:
+            print(f"Error: Environment variable {var} is required.")
+            exit(1)
+
+    influx_host = os.getenv("INFLUXDB_HOST")
+    influx_port = int(os.getenv("INFLUXDB_PORT"))
+    influx_user = os.getenv("INFLUXDB_USER")
+    influx_pw = os.getenv("INFLUXDB_PW")
+    influx_db = os.getenv("INFLUXDB_DATABASE")
 
     if verbose:
-        print("Influxdb Host: " + influx_user + "@" + influx_host + ":" + str(influx_port))
-        print("Influxdb Password: *****")
-        print("Influxdb DB: " + influx_db)
-        print("Tibber Token: " + tibber_token)
-        print("Only Active Homes: {}".format(tibber_homes_only_active))
-        print("Load History: {}".format(load_history))
+        print(f"InfluxDB Host: {influx_user}@{influx_host}:{influx_port}")
+        print("InfluxDB Password: *****")
+        print(f"InfluxDB DB: {influx_db}")
+        print(f"Tibber Token: {tibber_token}")
+        print(f"Only Active Homes: {tibber_homes_only_active}")
+        print(f"Load History: {load_history}")
 
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main(tibber_token))
+    asyncio.run(
+        main(
+            influx_host,
+            influx_port,
+            influx_user,
+            influx_pw,
+            influx_db,
+            influx_dry_run,
+            tibber_token,
+            tibber_homes_only_active,
+            load_history,
+            verbose,
+        )
+    )
+
+
+if __name__ == "__main__":
+    cli()
