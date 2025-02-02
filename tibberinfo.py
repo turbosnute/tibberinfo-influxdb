@@ -2,9 +2,8 @@ import asyncio
 import os
 import tibber
 import arrow
-from influxdb_client import InfluxDBClient, Point
+from influxdb_client import InfluxDBClient
 from influxdb_client.client.write_api import SYNCHRONOUS
-from influxdb_client.client.query_api import QueryApi
 import click
 
 
@@ -185,8 +184,10 @@ def get_current_price(home: tibber.TibberHome) -> list:
     \nThe following environment variables need to be set if you need other values than the default values:\
     \n"INFLUXDB_URL": "http://influxdb:8086",\
     \n"INFLUXDB_TOKEN": "your-token",\
-    \n"INFLUXDB_ORG": "your-organization",\
-    \n"INFLUXDB_BUCKET": "your-bucket"'
+    \n"INFLUXDB_ORG_ID": "your-organization-id",\
+    \n"Optional: INFLUXDB_BUCKET": "your-bucket",\
+    \n"Optional: TIBBER_TOKEN": "your-token",\
+    '
 )
 @click.option(
     "--tibber-token",
@@ -194,6 +195,13 @@ def get_current_price(home: tibber.TibberHome) -> list:
     prompt=False,
     hide_input=True,
     help="Tibber API token",
+)
+@click.option(
+    "--influx-bucket",
+    default=lambda: os.getenv("INFLUXDB_BUCKET"),
+    prompt=False,
+    hide_input=False,
+    help="InfluxDB Bucket",
 )
 @click.option(
     "--load-history",
@@ -218,6 +226,7 @@ def get_current_price(home: tibber.TibberHome) -> list:
 )
 def cli(
     tibber_token: str,
+    influx_bucket: str,
     load_history: bool,
     verbose: bool,
     tibber_homes_only_active: bool,
@@ -227,24 +236,26 @@ def cli(
     required_env_vars = {
         "INFLUXDB_URL": "http://influxdb:8086",
         "INFLUXDB_TOKEN": "your-token",
-        "INFLUXDB_ORG": "your-organization",
-        "INFLUXDB_BUCKET": "your-bucket",
+        "INFLUXDB_ORG_ID": "your-organization-id",
     }
 
-    for var, default in required_env_vars.items():
+    for var in required_env_vars.keys():
         if os.getenv(var) is None:
             print(f"Error: Environment variable {var} is required.")
             exit(1)
 
     influx_url = os.getenv("INFLUXDB_URL")
     influx_token = os.getenv("INFLUXDB_TOKEN")
-    influx_org = os.getenv("INFLUXDB_ORG")
-    influx_bucket = os.getenv("INFLUXDB_BUCKET")
+    influx_org = os.getenv("INFLUXDB_ORG_ID")
+    if not influx_bucket:
+        influx_bucket = os.getenv("INFLUXDB_BUCKET")
+    if not tibber_token:
+        tibber_token = os.getenv("TIBBER_TOKEN")
 
     if verbose:
         print(f"InfluxDB URL: {influx_url}")
         print("InfluxDB Token: *****")
-        print(f"InfluxDB Org: {influx_org}")
+        print(f"InfluxDB Org ID: {influx_org}")
         print(f"InfluxDB Bucket: {influx_bucket}")
         print(f"Tibber Token: {tibber_token}")
         print(f"Only Active Homes: {tibber_homes_only_active}")
