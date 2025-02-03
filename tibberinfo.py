@@ -1,11 +1,12 @@
 import asyncio
 import os
+import pprint
+from datetime import datetime
+
+import click
 import tibber
 from influxdb_client import InfluxDBClient
 from influxdb_client.client.write_api import SYNCHRONOUS
-import click
-import pprint
-from datetime import datetime
 
 
 def if_string_zero(val: str) -> float:
