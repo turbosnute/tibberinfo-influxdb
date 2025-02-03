@@ -39,6 +39,33 @@ def map_level_to_int(level: str) -> int:
     return numlevel
 
 
+def get_current_price(home: tibber.TibberHome) -> list:
+    current_price_info = home.info["viewer"]["home"]["currentSubscription"]["priceInfo"]["current"]  # fmt: skip
+
+    total = current_price_info["total"]
+    startsAt = current_price_info["startsAt"]
+    level = current_price_info["level"]
+    level_pretty = level.lower().replace("_", " ").title()
+    numlevel = map_level_to_int(level)
+
+    CurPriceInfo = [
+        {
+            "measurement": "price",
+            "time": startsAt,
+            "tags": {"address": home.address1},
+            "fields": {
+                "startsAt": startsAt,
+                "price": if_string_zero(total),
+                "level": level,
+                "displaylevel": level_pretty,
+                "numberlevel": numlevel,
+            },
+        }
+    ]
+
+    return CurPriceInfo
+
+
 async def main(
     influx_url: str,
     influx_token: str,
@@ -60,6 +87,12 @@ async def main(
     # Initialize the Tibber connection
     tibber_connection = tibber.Tibber(tibber_token, user_agent="tibberinfo-influxdb")
     await tibber_connection.update_info()
+    if not tibber_connection.name:
+        print(
+            "Error: Connection to Tibber could not be established. Check token or network connectivity."
+        )
+        await tibber_connection.close_connection()
+        exit(1)
     if verbose:
         print(f"Connected to Tibber, user '{tibber_connection.name}'")
 
@@ -82,7 +115,7 @@ async def main(
             pprint.pp(cur_price_info[0])
         if not influx_dry_run:
             if verbose:
-                print("Writing above record to InfluxDB...")
+                print("Writing above record to InfluxDB...\n---")
             write_api.write(
                 bucket=influx_bucket, org=influx_org, record=cur_price_info[0]
             )
@@ -113,13 +146,17 @@ async def main(
             )
 
         if verbose:
-            print(f"First and last price records, of {len(priceRecords)} total")
+            print(
+                f"First and last price records from Tibber, of {len(priceRecords)} total:"
+            )
             pprint.pp(priceRecords[0])
             print(f"[... {len(priceRecords) - 2} records ...]")
             pprint.pp(priceRecords[-1])
         if not influx_dry_run:
             if verbose:
-                print("Writing above records to InfluxDB...")
+                print(
+                    f"Writing above {len(priceRecords)} record(s) to InfluxDB...\n---"
+                )
             write_api.write(bucket=influx_bucket, org=influx_org, record=priceRecords)
 
         #
@@ -176,45 +213,15 @@ async def main(
             pprint.pp(consumptionRecords)
         if not influx_dry_run:
             if verbose:
-                print("Writing above records to InfluxDB...")
+                print(
+                    f"Writing above {len(consumptionRecords)} record(s) to InfluxDB..."
+                )
             write_api.write(
                 bucket=influx_bucket, org=influx_org, record=consumptionRecords
             )
 
     await tibber_connection.close_connection()
     client.close()
-
-
-def get_current_price(home: tibber.TibberHome) -> list:
-    #
-    # Current price:
-    #
-    current_price_info = home.info["viewer"]["home"]["currentSubscription"][
-        "priceInfo"
-    ]["current"]
-
-    total = current_price_info["total"]
-    startsAt = current_price_info["startsAt"]
-    level = current_price_info["level"]
-    level_pretty = level.lower().replace("_", " ").title()
-    numlevel = map_level_to_int(level)
-
-    CurPriceInfo = [
-        {
-            "measurement": "price",
-            "time": startsAt,
-            "tags": {"address": home.address1},
-            "fields": {
-                "startsAt": startsAt,
-                "price": if_string_zero(total),
-                "level": level,
-                "displaylevel": level_pretty,
-                "numberlevel": numlevel,
-            },
-        }
-    ]
-
-    return CurPriceInfo
 
 
 @click.command(
