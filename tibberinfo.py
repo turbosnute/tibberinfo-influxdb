@@ -227,12 +227,12 @@ async def main(
 
 @click.command(
     epilog='\n\b\n\
-    \nThe following environment variables need to be set if you need other values than the default values:\
-    \n"INFLUXDB_URL"   : "http://influxdb:8086",\
-    \n"INFLUXDB_TOKEN" : "your-token",\
-    \n"INFLUXDB_ORG_ID": "your-organization-id",\
-    \n"Optional (can be provided as argument --influx-bucket): INFLUXDB_BUCKET": "your-bucket",\
-    \n"Optional (can be provided as argument --tibber-token) : TIBBER_TOKEN"   : "your-token",\
+    \nThe following environment variables need to be set:\
+    \nINFLUXDB_URL   e.g. "http://influxdb:8086",\
+    \nINFLUXDB_TOKEN,\
+    \nINFLUXDB_ORG_ID,\
+    \nINFLUXDB_BUCKET - optional (can be provided as argument --influx-bucket),\
+    \nTIBBER_TOKEN - optional (can be provided as argument --tibber-token)\
     '
 )
 @click.option(
@@ -281,13 +281,9 @@ def cli(
     influx_dry_run: bool,
 ):
     # Check for required environment variables
-    required_env_vars = {
-        "INFLUXDB_URL": "http://influxdb:8086",
-        "INFLUXDB_TOKEN": "your-token",
-        "INFLUXDB_ORG_ID": "your-organization-id",
-    }
+    required_env_vars = ["INFLUXDB_URL", "INFLUXDB_TOKEN", "INFLUXDB_ORG_ID"]
 
-    for var in required_env_vars.keys():
+    for var in required_env_vars:
         if os.getenv(var) is None:
             print(f"Error: Environment variable {var} is required.")
             exit(1)
