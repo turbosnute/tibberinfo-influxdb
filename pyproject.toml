@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tibberinfo-influxdb"
+version = "0.2.0"
+description = "Gets the current energy price, consumption and cost from Tibber's API and pushes it to InfluxDB."
+readme = "README.md"
+authors = [
+  {name = "Øyvind Nilsen (turbosnute)", email = "on@ntnu.no"},
+  {name = "Patrik Lermon (kler)"},
+  {name = "Patrick Nagel", email = "mail@patrick-nagel.net"},
+]
+requires-python = ">=3.12"
+dependencies = [
+    "click>=8.1.8",
+    "influxdb-client>=1.48.0",
+    "pytibber>=0.30.8",
+]
+
+[project.urls]
+Repository = "https://github.com/turbosnute/tibberinfo-influxdb"
+
+[project.scripts]
+tibberinfo-influxdb = "tibberinfo:cli"
+
+[tool.hatch.build.targets.wheel]
+packages = ["./"]

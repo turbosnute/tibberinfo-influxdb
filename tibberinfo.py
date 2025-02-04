@@ -1,8 +1,12 @@
 import asyncio
 import os
+import pprint
+from datetime import datetime
+
+import click
 import tibber
-import arrow
-from influxdb import InfluxDBClient
+from influxdb_client import InfluxDBClient
+from influxdb_client.client.write_api import SYNCHRONOUS
 
 
 def if_string_zero(val: str) -> float:
@@ -36,113 +40,19 @@ def map_level_to_int(level: str) -> int:
     return numlevel
 
 
-async def main(access_token):
-    client = InfluxDBClient(influx_host, influx_port, influx_user, influx_pw, influx_db)
-    tibber_connection = tibber.Tibber(access_token)
-    await tibber_connection.update_info()
-    print(tibber_connection.name)
-
-    homes = tibber_connection.get_homes(only_active=tibber_homes_only_active)
-
-    for home in homes:
-        # await home.update_info()
-        # address = home.address1
-        # if verbose:
-        #     print("Home Address: " + address)
-        # await home.update_price_info()
-        await home.update_info_and_price_info()
-        if verbose:
-            print("Home Address: {}".format(home.address1))
-
-        cur_price_info = get_current_price(home)
-        print(cur_price_info)
-        if not influx_dry_run:
-            client.write_points(cur_price_info, time_precision="s")
-
-        entries = list()
-        for entry in list(zip(home.price_total, home.price_total.values(), home.price_level.values())):
-            startsAt = entry[0]
-            total = entry[1]
-            level = entry[2]
-            level_pretty = level.lower().replace("_", " ").title()
-            numlevel = map_level_to_int(level)
-
-            entries.append(
-                {
-                    "measurement": "price",
-                    "time": int(arrow.get(startsAt).timestamp()),
-                    "tags": {"address": home.address1},
-                    "fields": {
-                        "startsAt": startsAt,
-                        "price": if_string_zero(total),
-                        "level": level,
-                        "displaylevel": level_pretty,
-                        "numberlevel": numlevel,
-                    },
-                }
-            )
-
-        print(entries)
-        if not influx_dry_run:
-            client.write_points(entries, time_precision="s")
-
-        #
-        # Consumption last hour
-        #
-
-        # first check if it is nessecary to load more historic data...
-        # Look for data from the latest 3 hours:
-        result = client.query("select COUNT(cost) from consumption WHERE time > now() - 10h AND time < now()")
-
-        if load_history or result.raw["series"] == []:
-            # not much data. Lets add some
-            numhours = 100
-        elif result.raw["series"][0]["values"][0][1] < 8:
-            # too little. lets add.
-            numhours = 100
-        else:
-            numhours = 2
-
-        lasthoursdata = await home.get_historic_data(numhours)
-        for hourdata in lasthoursdata:
-            lastTime = hourdata["from"]
-            timestamp = int(arrow.get(lastTime).timestamp())
-            lastConsumption = hourdata["consumption"]
-            lastTotalCost = hourdata["totalCost"]
-            # Example:
-            # [{'from': '2020-05-22T15:00:00+02:00', 'totalCost': 0.1532024798387097, 'cost': 0.100783125, 'consumption': 0.855}]
-            if lastConsumption is not None:
-                lastConsumption = [
-                    {
-                        "measurement": "consumption",
-                        "time": timestamp,
-                        "tags": {"address": home.address1},
-                        "fields": {"cost": if_string_zero(lastTotalCost), "consumption": if_string_zero(lastConsumption)},
-                    }
-                ]
-
-                print(lastConsumption)
-                if not influx_dry_run:
-                    client.write_points(lastConsumption, time_precision="s")
-
-    await tibber_connection.close_connection()
-    client.close()
-
-
 def get_current_price(home: tibber.TibberHome) -> list:
-    #
-    # Current price:
-    #
-    total = home.current_price_info["total"]
-    startsAt = home.current_price_info["startsAt"]
-    level = home.current_price_info["level"]
+    current_price_info = home.info["viewer"]["home"]["currentSubscription"]["priceInfo"]["current"]  # fmt: skip
+
+    total = current_price_info["total"]
+    startsAt = current_price_info["startsAt"]
+    level = current_price_info["level"]
     level_pretty = level.lower().replace("_", " ").title()
     numlevel = map_level_to_int(level)
 
     CurPriceInfo = [
         {
             "measurement": "price",
-            "time": int(arrow.get(startsAt).timestamp()),
+            "time": startsAt,
             "tags": {"address": home.address1},
             "fields": {
                 "startsAt": startsAt,
@@ -157,26 +67,260 @@ def get_current_price(home: tibber.TibberHome) -> list:
     return CurPriceInfo
 
 
-if __name__ == "__main__":
-    # Settings from env
-    influx_host = os.getenv("INFLUXDB_HOST", "influxdb")
-    influx_port = os.getenv("INFLUXDB_PORT", 8086)
-    influx_user = os.getenv("INFLUXDB_USER", "root")
-    influx_pw = os.getenv("INFLUXDB_PW", "root")
-    influx_db = os.getenv("INFLUXDB_DATABASE", "tibber")
-    influx_dry_run = str_to_bool(os.getenv("INFLUXDB_DRY_RUN", "False"))
-    tibber_token = os.getenv("TIBBER_TOKEN")
-    tibber_homes_only_active = str_to_bool(os.getenv("TIBBER_HOMES_ONLYACTIVE", "True"))
-    load_history = str_to_bool(os.getenv("LOAD_HISTORY", "False"))
-    verbose = str_to_bool(os.getenv("VERBOSE", "False"))
+async def main(
+    influx_url: str,
+    influx_token: str,
+    influx_org: str,
+    influx_bucket: str,
+    influx_dry_run: bool,
+    tibber_token: str,
+    tibber_homes_only_active: bool,
+    load_history: bool,
+    verbose: bool,
+):
+    pprint.PrettyPrinter(indent=2, compact=True)
+
+    # Initialize the InfluxDB connection
+    client = InfluxDBClient(url=influx_url, token=influx_token)
+    write_api = client.write_api(write_options=SYNCHRONOUS)
+    query_api = client.query_api()
+
+    # Initialize the Tibber connection
+    tibber_connection = tibber.Tibber(tibber_token, user_agent="tibberinfo-influxdb")
+    await tibber_connection.update_info()
+    if not tibber_connection.name:
+        print(
+            "Error: Connection to Tibber could not be established. Check token or network connectivity."
+        )
+        await tibber_connection.close_connection()
+        exit(1)
+    if verbose:
+        print(f"Connected to Tibber, user '{tibber_connection.name}'")
+
+    homes = tibber_connection.get_homes(only_active=tibber_homes_only_active)
+
+    for home in homes:
+        await home.update_info_and_price_info()
+        if verbose:
+            print("=== Home Address: {}".format(home.address1))
+
+        await home.update_current_price_info()
+
+        #
+        # Price ingest
+        #
+
+        cur_price_info = get_current_price(home)
+        if verbose:
+            print("Current price info from Tibber:")
+            pprint.pp(cur_price_info[0])
+        if not influx_dry_run:
+            if verbose:
+                print("Writing above record to InfluxDB...\n---")
+            write_api.write(
+                bucket=influx_bucket, org=influx_org, record=cur_price_info[0]
+            )
+
+        priceRecords = list()
+        for entry in list(
+            zip(home.price_total, home.price_total.values(), home.price_level.values())
+        ):
+            startsAt = entry[0]
+            total = entry[1]
+            level = entry[2]
+            level_pretty = level.lower().replace("_", " ").title()
+            numlevel = map_level_to_int(level)
+
+            priceRecords.append(
+                {
+                    "measurement": "price",
+                    "time": startsAt,
+                    "tags": {"address": home.address1},
+                    "fields": {
+                        "startsAt": startsAt,
+                        "price": if_string_zero(total),
+                        "level": level,
+                        "displaylevel": level_pretty,
+                        "numberlevel": numlevel,
+                    },
+                }
+            )
+
+        if verbose:
+            print(
+                f"First and last price records from Tibber, of {len(priceRecords)} total:"
+            )
+            pprint.pp(priceRecords[0])
+            print(f"[... {len(priceRecords) - 2} records ...]")
+            pprint.pp(priceRecords[-1])
+        if not influx_dry_run:
+            if verbose:
+                print(
+                    f"Writing above {len(priceRecords)} record(s) to InfluxDB...\n---"
+                )
+            write_api.write(bucket=influx_bucket, org=influx_org, record=priceRecords)
+
+        #
+        # Consumption ingest
+        #
+
+        # Look for data from the latest 3 hours:
+        query = f'from(bucket: "{influx_bucket}") |> range(start: -3h) |> filter(fn: (r) => r._measurement == "consumption" )'
+        result = query_api.query(org=influx_org, query=query)
+
+        if verbose:
+            print("InfluxDB returned these entries for the last 3 hours:")
+            lines = []
+            for table in result:
+                for record in table.records:
+                    lines.append(
+                        # Translating UTC to local timezone to avoid confusion when
+                        # comparing with the Tibber records which are also in local time
+                        f"{datetime.astimezone(record.get_time())} {record.get_field()} {record.get_value()}"
+                    )
+            pprint.pp(sorted(lines))
+
+        if load_history or not result:
+            # Get 720 hours worth of data (API maximum on hour level)
+            numhours = 720
+        else:
+            # Just get the last two hours, this is probably being run from a cronjob
+            numhours = 2
+
+        consumptionRecords = []
+        lasthoursdata = await home.get_historic_data(numhours)
+        for hourdata in lasthoursdata:
+            lastTime = hourdata["from"]
+            timestamp = lastTime
+            lastConsumption = hourdata["consumption"]
+            lastTotalCost = hourdata["totalCost"]
+            # Example:
+            # [{'from': '2020-05-22T15:00:00+02:00', 'totalCost': 0.1532024798387097, 'cost': 0.100783125, 'consumption': 0.855}]
+            if lastConsumption is not None:
+                consumptionRecords.append(
+                    {
+                        "measurement": "consumption",
+                        "time": timestamp,
+                        "tags": {"address": home.address1},
+                        "fields": {
+                            "cost": if_string_zero(lastTotalCost),
+                            "consumption": if_string_zero(lastConsumption),
+                        },
+                    }
+                )
+
+        if verbose:
+            print("Retrieved consumption records from Tibber:")
+            pprint.pp(consumptionRecords)
+        if not influx_dry_run:
+            if verbose:
+                print(
+                    f"Writing above {len(consumptionRecords)} record(s) to InfluxDB..."
+                )
+            write_api.write(
+                bucket=influx_bucket, org=influx_org, record=consumptionRecords
+            )
+
+    await tibber_connection.close_connection()
+    client.close()
+
+
+@click.command(
+    epilog='\n\b\n\
+    \nThe following environment variables need to be set if you need other values than the default values:\
+    \n"INFLUXDB_URL"   : "http://influxdb:8086",\
+    \n"INFLUXDB_TOKEN" : "your-token",\
+    \n"INFLUXDB_ORG_ID": "your-organization-id",\
+    \n"Optional (can be provided as argument --influx-bucket): INFLUXDB_BUCKET": "your-bucket",\
+    \n"Optional (can be provided as argument --tibber-token) : TIBBER_TOKEN"   : "your-token",\
+    '
+)
+@click.option(
+    "--tibber-token",
+    default=lambda: os.getenv("TIBBER_TOKEN"),
+    prompt=False,
+    hide_input=True,
+    help="Tibber API token",
+)
+@click.option(
+    "--influx-bucket",
+    default=lambda: os.getenv("INFLUXDB_BUCKET"),
+    prompt=False,
+    hide_input=False,
+    help="InfluxDB Bucket name (create the bucket in InfluxDB first)",
+)
+@click.option(
+    "--load-history",
+    is_flag=True,
+    help="Load historical data",
+)
+@click.option(
+    "--verbose",
+    is_flag=True,
+    help="Get lots of information printed",
+)
+@click.option(
+    "--tibber-homes-only-active",
+    is_flag=True,
+    default=True,
+    help="Only use active Tibber homes",
+)
+@click.option(
+    "--influx-dry-run",
+    is_flag=True,
+    help="Dry run for InfluxDB (do not write data)",
+)
+def cli(
+    tibber_token: str,
+    influx_bucket: str,
+    load_history: bool,
+    verbose: bool,
+    tibber_homes_only_active: bool,
+    influx_dry_run: bool,
+):
+    # Check for required environment variables
+    required_env_vars = {
+        "INFLUXDB_URL": "http://influxdb:8086",
+        "INFLUXDB_TOKEN": "your-token",
+        "INFLUXDB_ORG_ID": "your-organization-id",
+    }
+
+    for var in required_env_vars.keys():
+        if os.getenv(var) is None:
+            print(f"Error: Environment variable {var} is required.")
+            exit(1)
+
+    influx_url = os.getenv("INFLUXDB_URL")
+    influx_token = os.getenv("INFLUXDB_TOKEN")
+    influx_org = os.getenv("INFLUXDB_ORG_ID")
+    if not influx_bucket:
+        influx_bucket = os.getenv("INFLUXDB_BUCKET")
+    if not tibber_token:
+        tibber_token = os.getenv("TIBBER_TOKEN")
 
     if verbose:
-        print("Influxdb Host: " + influx_user + "@" + influx_host + ":" + str(influx_port))
-        print("Influxdb Password: *****")
-        print("Influxdb DB: " + influx_db)
-        print("Tibber Token: " + tibber_token)
-        print("Only Active Homes: {}".format(tibber_homes_only_active))
-        print("Load History: {}".format(load_history))
+        print(f"InfluxDB URL: {influx_url}")
+        print("InfluxDB Token: *****")
+        print(f"InfluxDB Org ID: {influx_org}")
+        print(f"InfluxDB Bucket: {influx_bucket}")
+        print(f"Tibber Token: {tibber_token}")
+        print(f"Only Active Homes: {tibber_homes_only_active}")
+        print(f"Load History: {load_history}")
 
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main(tibber_token))
+    asyncio.run(
+        main(
+            influx_url,
+            influx_token,
+            influx_org,
+            influx_bucket,
+            influx_dry_run,
+            tibber_token,
+            tibber_homes_only_active,
+            load_history,
+            verbose,
+        )
+    )
+
+
+if __name__ == "__main__":
+    cli()
