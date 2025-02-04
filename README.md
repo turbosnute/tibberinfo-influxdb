@@ -1,9 +1,19 @@
 # tibberinfo-influxdb
-Gets the current energy price and the consumption and cost for the past hour and pushes it to your influxdb.
+Gets the current energy price, consumption and cost from Tibber's API and pushes it to InfluxDB.
 
 ## How to obtain a Tibber Token
 - Go to https://developer.tibber.com/ and Sign in.
-- Genrerate a new token.
+- Generate a new token (referred to as <tibber-token> below).
+
+## InfluxDB Prerequisites
+We assume that you already have
+- an InfluxDB 2.x server running at `<influxdb-url>`,
+- that you have created a bucket `<influxdb-bucket>` in the
+- organization `<influxdb-org>` to which the
+- token `<influxdb-token>` has read and write access.
+
+If that is not the case, please head over to [InfluxDB V2 getting started](https://docs.influxdata.com/influxdb/v2/get-started/).
+
 
 ## Run using docker-compose
 Utilises the docker-compose.yml to get everything you need up and running.
@@ -23,8 +33,10 @@ services:
 EOF
 
 cat << EOF > tibberinfo-influxdb.env
-INFLUXDB_HOST=<influxdb-host>
-INFLUXDB_DATABASE=<influxdb-database>
+INFLUXDB_URL=<influxdb-url>
+INFLUXDB_ORG=<influxdb-org>
+INFLUXDB_BUCKET=<influxdb-bucket>
+INFLUXDB_TOKEN=<influxdb-token>
 TIBBER_TOKEN=<tibber-token>
 EOF
 
