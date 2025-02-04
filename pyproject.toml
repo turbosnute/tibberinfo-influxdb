@@ -27,3 +27,6 @@ tibberinfo-influxdb = "tibberinfo:cli"
 
 [tool.hatch.build.targets.wheel]
 packages = ["./"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
