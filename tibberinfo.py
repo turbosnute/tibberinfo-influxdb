@@ -239,15 +239,17 @@ async def main(
     "--tibber-token",
     default=lambda: os.getenv("TIBBER_TOKEN"),
     prompt=False,
+    required=True,
     hide_input=True,
-    help="Tibber API token",
+    help="Tibber API token (alternatively set TIBBER_TOKEN env. variable)",
 )
 @click.option(
     "--influx-bucket",
     default=lambda: os.getenv("INFLUXDB_BUCKET"),
     prompt=False,
+    required=True,
     hide_input=False,
-    help="InfluxDB Bucket name (create the bucket in InfluxDB first)",
+    help="InfluxDB Bucket name (create the bucket in InfluxDB first; alternatively set INFLUXDB_BUCKET env. variable)",
 )
 @click.option(
     "--load-history",
