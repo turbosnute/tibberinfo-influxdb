@@ -1,21 +1,60 @@
 # tibberinfo-influxdb
-Gets the current energy price and the consumption and cost for the past hour and pushes it to your influxdb.
+Gets the current energy price, consumption and cost from Tibber's API and pushes it to InfluxDB.
 
 ## How to obtain a Tibber Token
 - Go to https://developer.tibber.com/ and Sign in.
-- Genrerate a new token.
+- Generate a new token (referred to as `<tibber-token>` below).
 
-## Run using docker-compose
+## InfluxDB Prerequisites
+We assume that you already have
+- an InfluxDB 2.x server running at `<influxdb-url>`,
+- that you have created a bucket `<influxdb-bucket>` in the
+- organization with the ID `<influxdb-org-id>` to which the
+- token `<influxdb-token>` has read and write access.
+
+If that is not the case, please head over to [InfluxDB V2 getting started](https://docs.influxdata.com/influxdb/v2/get-started/).
+
+
+## Different ways to run tibberinfo-influxdb
+
+Depending on your preferences, there are different ways to run tibberinfo-influxdb:
+
+1. Without container, i.e. [run in a uv-managed Python virtual environment](#run-in-a-uv-managed-python-virtual-environment)
+2. With container and [docker compose](run-using-docker-compose)
+
+### Run in a uv-managed Python virtual environment
+1. If you don't have it yet, install [uv](https://github.com/astral-sh/uv?tab=readme-ov-file#installation), an extremely fast Python package and project manager.
+2. Place the necessary information in your shell's environment.
+   ```bash
+   export INFLUXDB_URL=<influxdb-url>
+   export INFLUXDB_ORG_ID=<influxdb-org-id>
+   export INFLUXDB_BUCKET=<influxdb-bucket>
+   export INFLUXDB_TOKEN=<influxdb-token>
+   export TIBBER_TOKEN=<tibber-token>
+   ```
+   It is probably a good idea to save this into a file named `~/.tibberinfo-influxdb_credentials` or similar, and source it in the future, so that you do not have to type it again and again.
+3. ```bash
+   uv run tibberinfo-influxdb
+   ```
+
+   (try `--help` and `--verbose` to see something - the script is designed to be quiet otherwise, so that it can be run in a cronjob without sending an e-mail every day).
+
+   If you have created a `~/.tibberinfo-influxdb_credentials` file as advised, the command would be
+   ```bash
+   source ~/.tibberinfo-influxdb_credentials && uv run tibberinfo-influxdb
+   ```
+   Place it in your crontab to run it every few hours.
+
+
+### Docker compose
 Utilises the docker-compose.yml to get everything you need up and running.
 
-### Config
-If you want to avoid getting git diffs, and still be able keep your config in project director, create a `docker-compose.override.yml`
-together with a `tibberinfo-influxdb.env` like this:
-```
-# In root of repository
+#### Config
+If you want to avoid getting git diffs, and still be able keep your config in the project directory, create a `docker-compose.override.yml` together with a `tibberinfo-influxdb.env` like this:
 
+In the root of the repository, run:
+```bash
 cat << EOF > docker-compose.override.yml
-version: '3'
 services:
   tibberinfo-influxdb:
     env_file:
@@ -23,86 +62,64 @@ services:
 EOF
 
 cat << EOF > tibberinfo-influxdb.env
-INFLUXDB_HOST=<influxdb-host>
-INFLUXDB_DATABASE=<influxdb-database>
+INFLUXDB_URL=<influxdb-url>
+INFLUXDB_ORG_ID=<influxdb-org-id>
+INFLUXDB_BUCKET=<influxdb-bucket>
+INFLUXDB_TOKEN=<influxdb-token>
 TIBBER_TOKEN=<tibber-token>
 EOF
 
 ```
+Then adjust tibberinfo-influxdb.env so that it contains your values.
 
-### Start tibberinfo-influxdb and dependencies.
-Will run in a loop every 12h by default.
+#### Build and start tibberinfo-influxdb container
+Once tibberinfo-influxdb.env is in place with the correct data, run the following command:
 ```
 docker-compose up -d
 ```
+It will run the `tibberinfo.py` script in a loop every 12h.
 
-## Run using pure docker
-If you prefer to use docker directly.
-### Create and Influxdb database
-Create the influxdb instance which data will be pushed to.
 
-#### Run InfluxDB in Docker
-If you don't have a Influxdb server yet you can run one in Docker:
-```
-$ docker run -d -p 8086:8086 \
-      -v influxdb:/var/lib/influxdb \
-      influxdb
-```
+## Usage
 
-#### Create the database
 ```
-$ curl -G http://<INFLUXDB_SERVER or DOCKER_HOST>:8086/query --data-urlencode "q=CREATE DATABASE tibber"
-```
+Usage: tibberinfo-influxdb [OPTIONS]
 
-### Start tibberinfo-influxdb
-```
-docker run -d \
- -e INFLUXDB_HOST="influxdb" \
- -e INFLUXDB_DATABASE="tibber" \
- -e TIBBER_TOKEN="your tibber token" \
- --name "tibberinfo-influxdb" \
-turbosnute/tibberinfo-influxdb:latest
-```
+Options:
+  --tibber-token TEXT         Tibber API token (alternatively set TIBBER_TOKEN
+                              env. variable)  [required]
+  --influx-bucket TEXT        InfluxDB Bucket name (create the bucket in
+                              InfluxDB first; alternatively set
+                              INFLUXDB_BUCKET env. variable)  [required]
+  --load-history              Load historical data
+  --verbose                   Get lots of information printed
+  --tibber-homes-only-active  Only use active Tibber homes
+  --influx-dry-run            Dry run for InfluxDB (do not write data)
+  --help                      Show this message and exit.
 
-## Run locally
+      
+  The following environment variables need to be set:    
+  INFLUXDB_URL   e.g. "http://influxdb:8086",    
+  INFLUXDB_TOKEN,    
+  INFLUXDB_ORG_ID,    
+  INFLUXDB_BUCKET - optional (can be provided as argument --influx-bucket),    
+  TIBBER_TOKEN - optional (can be provided as argument --tibber-token)
 ```
-export INFLUXDB_HOST=<hostname>; export INFLUXDB_DATABASE=<influx-db>; export TIBBER_TOKEN=<tibber-token>; python tibberinfo.py
-```
+(from `tibberinfo-influxdb --help`)
 
-## Options
-
-| Option                    | Description                                                     | Default     |
-|---------------------------|-----------------------------------------------------------------|-------------|
-| `INFLUXDB_HOST`           | Influxdb hostname                                               | `influxdb`  |
-| `INFLUXDB_PORT`           | Port that Influxdb is listening on                              | `8086`      |
-| `INFLUXDB_USER`           | Influxdb user                                                   | `root`      |
-| `INFLUXDB_PW`             | Influxdb password                                               | `root`      |
-| `INFLUXDB_DATABASE`       | Influxdb database name                                          | `tibber`    |
-| `INFLUXDB_DRY_RUN`        | Only emulate writing to Influxdb                                | `False`     |
-| `TIBBER_TOKEN`            | Your Tibber development API token                               | `None`      |
-| `VERBOSE`                 | Print more verbose information                                  | `False`     |
-| `LOAD_HISTORY`            | Force Load Consumption data for last 100 hours                  | `False`     |
-| `TIBBER_HOMES_ONLYACTIVE` | Try to get data when your Tibber Subscription is not active yet | `True`      |
-
-## Options detailed description
-### Force Load Consumption data for last 100 hours
-If you want to force the container to load the consumption statistics for the last 100 hours. This will load data for the 100 last hours and then exit the container. So remember to start the container again without this variable after it's done.
-```
-LOAD_HISTORY="True"
-```
+### Force loading consumption data for the last 720 hours
+If you want to force loading the consumption statistics for the last 720 hours, use the `--load-history` option.
 
 ### Try to get data when your Tibber Subscription is not active yet
-If you just signed up for Tibber, you can be in a situation where your subscription is not active yet. In that case you can use the following settings, it might help you get some data.
-```
-TIBBER_HOMES_ONLYACTIVE="False"
-```
+If you just signed up for Tibber, you can be in a situation where your subscription is not active yet. In that case you can use the `--tibber-homes-only-active` option, it might help you get some data.
+
 
 ## Crontab example
 
-
-- Randomize the minute to offload api
-- Run after 13 when prices for next day are usually set
+- Run every day
+- Please randomize the minute (first number in the line) to reduce API load
+- Run after 13:00 when prices for next day are usually set
 
 ```
-23 13 * * * export INFLUXDB_HOST=<hostname>; export INFLUXDB_DATABASE=<influx-db>; export TIBBER_TOKEN=<tibber-token>; python /path/to/tibberinfo.py >> /path/to/tibberinfo.log 2>&1
+23 13 * * * export INFLUXDB_URL=<influxdb-url>; export INFLUXDB_ORG_ID=<influxdb-org-id>; export INFLUXDB_BUCKET=<influxdb-bucket>; export INFLUXDB_TOKEN=<influxdb-token>; export TIBBER_TOKEN=<tibber-token>; uv run tibberinfo-influxdb
 ```

@@ -2,7 +2,7 @@
 ARG ARCH=
 
 # Pull base image
-FROM python:3.11-alpine
+FROM python:3.12-alpine
 
 # Labels
 LABEL MAINTAINER="Øyvind Nilsen <oyvind.nilsen@gmail.com>"
@@ -24,6 +24,8 @@ RUN addgroup -g $GROUP_ID $GROUP_NAME && \
 ADD tibberinfo.py /app/
 ADD get.sh /app/
 ADD requirements.txt /app/
+ADD pyproject.toml /app/
+ADD README.md /app/
 
 # Chmod
 RUN chmod 755 /app/get.sh
