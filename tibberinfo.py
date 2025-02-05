@@ -40,22 +40,22 @@ def map_level_to_int(level: str) -> int:
     return numlevel
 
 
-def get_current_price(home: tibber.TibberHome) -> list:
+def get_current_price(home: tibber.TibberHome) -> list[dict]:
     current_price_info = home.info["viewer"]["home"]["currentSubscription"]["priceInfo"]["current"]  # fmt: skip
 
     total = current_price_info["total"]
-    startsAt = current_price_info["startsAt"]
+    starts_at = current_price_info["startsAt"]
     level = current_price_info["level"]
     level_pretty = level.lower().replace("_", " ").title()
     numlevel = map_level_to_int(level)
 
-    CurPriceInfo = [
+    cur_price_info = [
         {
             "measurement": "price",
-            "time": startsAt,
+            "time": starts_at,
             "tags": {"address": home.address1},
             "fields": {
-                "startsAt": startsAt,
+                "startsAt": starts_at,
                 "price": if_string_zero(total),
                 "level": level,
                 "displaylevel": level_pretty,
@@ -64,7 +64,7 @@ def get_current_price(home: tibber.TibberHome) -> list:
         }
     ]
 
-    return CurPriceInfo
+    return cur_price_info
 
 
 async def main(
@@ -121,23 +121,23 @@ async def main(
                 bucket=influx_bucket, org=influx_org, record=cur_price_info[0]
             )
 
-        priceRecords = list()
+        price_records = list()
         for entry in list(
             zip(home.price_total, home.price_total.values(), home.price_level.values())
         ):
-            startsAt = entry[0]
+            starts_at = entry[0]
             total = entry[1]
             level = entry[2]
             level_pretty = level.lower().replace("_", " ").title()
             numlevel = map_level_to_int(level)
 
-            priceRecords.append(
+            price_records.append(
                 {
                     "measurement": "price",
-                    "time": startsAt,
+                    "time": starts_at,
                     "tags": {"address": home.address1},
                     "fields": {
-                        "startsAt": startsAt,
+                        "startsAt": starts_at,
                         "price": if_string_zero(total),
                         "level": level,
                         "displaylevel": level_pretty,
@@ -148,17 +148,17 @@ async def main(
 
         if verbose:
             print(
-                f"First and last price records from Tibber, of {len(priceRecords)} total:"
+                f"First and last price records from Tibber, of {len(price_records)} total:"
             )
-            pprint.pp(priceRecords[0])
-            print(f"[... {len(priceRecords) - 2} records ...]")
-            pprint.pp(priceRecords[-1])
+            pprint.pp(price_records[0])
+            print(f"[... {len(price_records) - 2} records ...]")
+            pprint.pp(price_records[-1])
         if not influx_dry_run:
             if verbose:
                 print(
-                    f"Writing above {len(priceRecords)} record(s) to InfluxDB...\n---"
+                    f"Writing above {len(price_records)} record(s) to InfluxDB...\n---"
                 )
-            write_api.write(bucket=influx_bucket, org=influx_org, record=priceRecords)
+            write_api.write(bucket=influx_bucket, org=influx_org, record=price_records)
 
         #
         # Consumption ingest
@@ -187,38 +187,38 @@ async def main(
             # Just get the last two hours, this is probably being run from a cronjob
             numhours = 2
 
-        consumptionRecords = []
+        consumption_records = []
         lasthoursdata = await home.get_historic_data(numhours)
         for hourdata in lasthoursdata:
-            lastTime = hourdata["from"]
-            timestamp = lastTime
-            lastConsumption = hourdata["consumption"]
-            lastTotalCost = hourdata["totalCost"]
+            last_time = hourdata["from"]
+            timestamp = last_time
+            last_consumption = hourdata["consumption"]
+            last_total_cost = hourdata["totalCost"]
             # Example:
             # [{'from': '2020-05-22T15:00:00+02:00', 'totalCost': 0.1532024798387097, 'cost': 0.100783125, 'consumption': 0.855}]
-            if lastConsumption is not None:
-                consumptionRecords.append(
+            if last_consumption is not None:
+                consumption_records.append(
                     {
                         "measurement": "consumption",
                         "time": timestamp,
                         "tags": {"address": home.address1},
                         "fields": {
-                            "cost": if_string_zero(lastTotalCost),
-                            "consumption": if_string_zero(lastConsumption),
+                            "cost": if_string_zero(last_total_cost),
+                            "consumption": if_string_zero(last_consumption),
                         },
                     }
                 )
 
         if verbose:
             print("Retrieved consumption records from Tibber:")
-            pprint.pp(consumptionRecords)
+            pprint.pp(consumption_records)
         if not influx_dry_run:
             if verbose:
                 print(
-                    f"Writing above {len(consumptionRecords)} record(s) to InfluxDB..."
+                    f"Writing above {len(consumption_records)} record(s) to InfluxDB..."
                 )
             write_api.write(
-                bucket=influx_bucket, org=influx_org, record=consumptionRecords
+                bucket=influx_bucket, org=influx_org, record=consumption_records
             )
 
     await tibber_connection.close_connection()
