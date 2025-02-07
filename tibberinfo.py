@@ -122,27 +122,28 @@ async def main(
             )
 
         price_records = list()
-        for entry in home.info["viewer"]["home"]["currentSubscription"]["priceInfo"]["today"]:  # fmt: skip
-            starts_at = entry["startsAt"]
-            total = entry["total"]
-            level = entry["level"]
-            level_pretty = level.lower().replace("_", " ").title()
-            numlevel = map_level_to_int(level)
+        for day in ["today", "tomorrow"]:
+            for entry in home.info["viewer"]["home"]["currentSubscription"]["priceInfo"][day]:  # fmt: skip
+                starts_at = entry["startsAt"]
+                total = entry["total"]
+                level = entry["level"]
+                level_pretty = level.lower().replace("_", " ").title()
+                numlevel = map_level_to_int(level)
 
-            price_records.append(
-                {
-                    "measurement": "price",
-                    "time": starts_at,
-                    "tags": {"address": home.address1},
-                    "fields": {
-                        "startsAt": starts_at,
-                        "price": if_string_zero(total),
-                        "level": level,
-                        "displaylevel": level_pretty,
-                        "numberlevel": numlevel,
-                    },
-                }
-            )
+                price_records.append(
+                    {
+                        "measurement": "price",
+                        "time": starts_at,
+                        "tags": {"address": home.address1},
+                        "fields": {
+                            "startsAt": starts_at,
+                            "price": if_string_zero(total),
+                            "level": level,
+                            "displaylevel": level_pretty,
+                            "numberlevel": numlevel,
+                        },
+                    }
+                )
 
         if verbose:
             if verbose > 1:
