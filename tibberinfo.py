@@ -167,14 +167,15 @@ async def main(
         # Consumption ingest
         #
 
-        # Look for data from the latest 3 hours:
+        # Look for data from the latest 12 hours to decide on whether to get only recent consumption
+        # data, or go as far back as possible:
         result = None
         if not influx_dry_run:
-            query = f'from(bucket: "{influx_bucket}") |> range(start: -3h) |> filter(fn: (r) => r._measurement == "consumption" )'
+            query = f'from(bucket: "{influx_bucket}") |> range(start: -12h) |> filter(fn: (r) => r._measurement == "consumption" )'
             result = query_api.query(org=influx_org, query=query)
 
             if verbose:
-                print("InfluxDB returned these entries for the last 3 hours:")
+                print("InfluxDB returned these entries for the last 12 hours:")
                 lines = []
                 for table in result:
                     for record in table.records:
@@ -189,8 +190,8 @@ async def main(
             # Get 720 hours worth of data (API maximum on hour level)
             numhours = 720
         else:
-            # Just get the last two hours, this is probably being run from a cronjob
-            numhours = 2
+            # Just get the last 12 hours, this is probably being run from a cronjob
+            numhours = 12
 
         consumption_records = []
         lasthoursdata = await home.get_historic_data(numhours)
