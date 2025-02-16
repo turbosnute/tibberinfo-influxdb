@@ -122,37 +122,40 @@ async def main(
             )
 
         price_records = list()
-        for entry in list(
-            zip(home.price_total, home.price_total.values(), home.price_level.values())
-        ):
-            starts_at = entry[0]
-            total = entry[1]
-            level = entry[2]
-            level_pretty = level.lower().replace("_", " ").title()
-            numlevel = map_level_to_int(level)
+        for day in ["today", "tomorrow"]:
+            for entry in home.info["viewer"]["home"]["currentSubscription"]["priceInfo"][day]:  # fmt: skip
+                starts_at = entry["startsAt"]
+                total = entry["total"]
+                level = entry["level"]
+                level_pretty = level.lower().replace("_", " ").title()
+                numlevel = map_level_to_int(level)
 
-            price_records.append(
-                {
-                    "measurement": "price",
-                    "time": starts_at,
-                    "tags": {"address": home.address1},
-                    "fields": {
-                        "startsAt": starts_at,
-                        "price": if_string_zero(total),
-                        "level": level,
-                        "displaylevel": level_pretty,
-                        "numberlevel": numlevel,
-                    },
-                }
-            )
+                price_records.append(
+                    {
+                        "measurement": "price",
+                        "time": starts_at,
+                        "tags": {"address": home.address1},
+                        "fields": {
+                            "startsAt": starts_at,
+                            "price": if_string_zero(total),
+                            "level": level,
+                            "displaylevel": level_pretty,
+                            "numberlevel": numlevel,
+                        },
+                    }
+                )
 
         if verbose:
-            print(
-                f"First and last price records from Tibber, of {len(price_records)} total:"
-            )
-            pprint.pp(price_records[0])
-            print(f"[... {len(price_records) - 2} records ...]")
-            pprint.pp(price_records[-1])
+            if verbose > 1:
+                print(f"Price records from Tibber ({len(price_records)})")
+                pprint.pp(price_records)
+            else:
+                print(
+                    f"First and last price records from Tibber, of {len(price_records)} total:"
+                )
+                pprint.pp(price_records[0])
+                print(f"[... {len(price_records) - 2} records ...]")
+                pprint.pp(price_records[-1])
         if not influx_dry_run:
             if verbose:
                 print(
@@ -164,28 +167,31 @@ async def main(
         # Consumption ingest
         #
 
-        # Look for data from the latest 3 hours:
-        query = f'from(bucket: "{influx_bucket}") |> range(start: -3h) |> filter(fn: (r) => r._measurement == "consumption" )'
-        result = query_api.query(org=influx_org, query=query)
+        # Look for data from the latest 12 hours to decide on whether to get only recent consumption
+        # data, or go as far back as possible:
+        result = None
+        if not influx_dry_run:
+            query = f'from(bucket: "{influx_bucket}") |> range(start: -12h) |> filter(fn: (r) => r._measurement == "consumption" )'
+            result = query_api.query(org=influx_org, query=query)
 
-        if verbose:
-            print("InfluxDB returned these entries for the last 3 hours:")
-            lines = []
-            for table in result:
-                for record in table.records:
-                    lines.append(
-                        # Translating UTC to local timezone to avoid confusion when
-                        # comparing with the Tibber records which are also in local time
-                        f"{datetime.astimezone(record.get_time())} {record.get_field()} {record.get_value()}"
-                    )
-            pprint.pp(sorted(lines))
+            if verbose:
+                print("InfluxDB returned these entries for the last 12 hours:")
+                lines = []
+                for table in result:
+                    for record in table.records:
+                        lines.append(
+                            # Translating UTC to local timezone to avoid confusion when
+                            # comparing with the Tibber records which are also in local time
+                            f"{datetime.astimezone(record.get_time())} {record.get_field()} {record.get_value()}"
+                        )
+                pprint.pp(sorted(lines))
 
         if load_history or not result:
             # Get 720 hours worth of data (API maximum on hour level)
             numhours = 720
         else:
-            # Just get the last two hours, this is probably being run from a cronjob
-            numhours = 2
+            # Just get the last 12 hours, this is probably being run from a cronjob
+            numhours = 12
 
         consumption_records = []
         lasthoursdata = await home.get_historic_data(numhours)
@@ -210,8 +216,16 @@ async def main(
                 )
 
         if verbose:
-            print("Retrieved consumption records from Tibber:")
-            pprint.pp(consumption_records)
+            if verbose > 1:
+                print(f"Consumption records from Tibber ({len(consumption_records)})")
+                pprint.pp(consumption_records)
+            else:
+                print(
+                    f"First and last consumption records from Tibber, of {len(consumption_records)} total:"
+                )
+                pprint.pp(consumption_records[0])
+                print(f"[... {len(consumption_records) - 2} records ...]")
+                pprint.pp(consumption_records[-1])
         if not influx_dry_run:
             if verbose:
                 print(
@@ -258,7 +272,8 @@ async def main(
 )
 @click.option(
     "--verbose",
-    is_flag=True,
+    "-v",
+    count=True,
     help="Get lots of information printed",
 )
 @click.option(
