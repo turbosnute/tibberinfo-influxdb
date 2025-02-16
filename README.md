@@ -20,7 +20,7 @@ If that is not the case, please head over to [InfluxDB V2 getting started](https
 Depending on your preferences, there are different ways to run tibberinfo-influxdb:
 
 1. Without container, i.e. [run in a uv-managed Python virtual environment](#run-in-a-uv-managed-python-virtual-environment)
-2. With container and [docker compose](run-using-docker-compose)
+2. With container and [docker compose](#docker-compose)
 
 ### Run in a uv-managed Python virtual environment
 1. If you don't have it yet, install [uv](https://github.com/astral-sh/uv?tab=readme-ov-file#installation), an extremely fast Python package and project manager.
