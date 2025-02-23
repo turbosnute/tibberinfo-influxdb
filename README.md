@@ -123,3 +123,6 @@ If you just signed up for Tibber, you can be in a situation where your subscript
 ```
 23 13 * * * export INFLUXDB_URL=<influxdb-url>; export INFLUXDB_ORG_ID=<influxdb-org-id>; export INFLUXDB_BUCKET=<influxdb-bucket>; export INFLUXDB_TOKEN=<influxdb-token>; export TIBBER_TOKEN=<tibber-token>; uv run tibberinfo-influxdb
 ```
+
+## Query examples
+Have a look at some [query examples](examples/README.md) to see what you can do once tibberinfo-influxdb is filling your InfluxDB bucket with Tibber data.
