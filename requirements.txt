@@ -18,7 +18,7 @@ influxdb-client==1.48.0
 multidict==6.1.0
 propcache==0.2.1
 python-dateutil==2.9.0.post0
-pytibber==0.30.8
+pytibber==0.33.1
 reactivex==4.0.4
 setuptools==75.8.0
 six==1.17.0
