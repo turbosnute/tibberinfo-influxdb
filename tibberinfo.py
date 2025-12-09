@@ -104,8 +104,6 @@ async def main(
         if verbose:
             print("=== Home Address: {}".format(home.address1))
 
-        await home.update_current_price_info()
-
         #
         # Price ingest
         #
