@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tibberinfo-influxdb"
-version = "0.2.0"
+version = "0.3.0"
 description = "Gets the current energy price, consumption and cost from Tibber's API and pushes it to InfluxDB."
 readme = "README.md"
 authors = [
